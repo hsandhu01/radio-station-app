@@ -36,6 +36,7 @@ class RadioApp(QMainWindow):
 
         self.player = None
         self.station_urls = {}
+        self.favorites = {}
 
         self.init_ui()
 
@@ -95,6 +96,19 @@ class RadioApp(QMainWindow):
         self.update_button.clicked.connect(self.update_stations)
         self.layout.addWidget(self.update_button)
 
+        # Add to favorites button
+        self.favorites_button = QPushButton("Add to Favorites")
+        self.favorites_button.clicked.connect(self.add_to_favorites)
+        self.layout.addWidget(self.favorites_button)
+
+        # Favorites selection
+        self.favorites_label = QLabel("Favorites:")
+        self.layout.addWidget(self.favorites_label)
+
+        self.favorites_combobox = QComboBox()
+        self.favorites_combobox.activated[str].connect(self.play_favorite)
+        self.layout.addWidget(self.favorites_combobox)
+
         self.update_genres()
 
     def fetch_radio_stations(self, country, genre):
@@ -102,7 +116,8 @@ class RadioApp(QMainWindow):
             try:
                 rb = pyradios.RadioBrowser(base_url=f"https://{server}")
                 stations = rb.search(country=country, tag=genre, limit=10)
-                return stations
+                if stations:
+                    return stations
             except Exception as e:
                 print(f"Error fetching stations from {server}: {e}")
         QMessageBox.critical(self, "Error", "Failed to fetch radio stations from all servers.")
@@ -151,6 +166,29 @@ class RadioApp(QMainWindow):
         if self.player:
             self.player.audio_set_volume(value)
 
+    def add_to_favorites(self):
+        selected_station = self.station_combobox.currentText()
+        if selected_station and selected_station not in self.favorites:
+            self.favorites[selected_station] = self.station_urls[selected_station]
+            self.favorites_combobox.addItem(selected_station)
+            QMessageBox.information(self, "Favorites", f"Added {selected_station} to favorites.")
+
+    def play_favorite(self, station_name):
+        if station_name in self.favorites:
+            station_info = self.favorites[station_name]
+            url = station_info['url_resolved']
+
+            if self.player and self.player.is_playing():
+                self.player.stop()
+
+            instance = vlc.Instance('--quiet', '--no-xlib')
+            self.player = instance.media_player_new()
+            media = instance.media_new(url)
+            self.player.set_media(media)
+            self.player.audio_set_volume(self.volume_slider.value())
+            self.player.play()
+            QMessageBox.information(self, "Play Favorite", f"Playing: {station_name}\nURL: {url}")
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     
@@ -166,3 +204,4 @@ if __name__ == "__main__":
     
     window.show()
     sys.exit(app.exec_())
+

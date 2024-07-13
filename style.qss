@@ -1,10 +1,11 @@
 QMainWindow {
-    background-color: #2E2E2E;
+    background-color: #1E1E1E;
+    color: #FFFFFF;
 }
 
 QPushButton {
-    background-color: #3E3E3E;
-    color: white;
+    background-color: #2E2E2E;
+    color: #FFFFFF;
     border: 1px solid #5E5E5E;
     padding: 10px;
     border-radius: 5px;
@@ -15,13 +16,13 @@ QPushButton:hover {
 }
 
 QLabel {
-    color: white;
+    color: #FFFFFF;
     font-size: 14px;
 }
 
 QComboBox {
-    background-color: #4E4E4E;
-    color: white;
+    background-color: #3E3E3E;
+    color: #FFFFFF;
     border: 1px solid #5E5E5E;
     padding: 5px;
     border-radius: 5px;
@@ -30,11 +31,11 @@ QComboBox {
 QSlider::groove:horizontal {
     border: 1px solid #5E5E5E;
     height: 8px;
-    background: #4E4E4E;
+    background: #3E3E3E;
 }
 
 QSlider::handle:horizontal {
-    background: #3E3E3E;
+    background: #2E2E2E;
     border: 1px solid #5E5E5E;
     width: 20px;
     margin: -2px 0;
