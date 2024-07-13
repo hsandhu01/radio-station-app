@@ -1,7 +1,9 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
+import sys
 import os
-import vlc  # You need to install python-vlc using pip
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QComboBox, QPushButton, QSlider, QMessageBox
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
+import vlc
 import pyradios
 
 # List of available Radio Browser servers
@@ -19,134 +21,148 @@ COMMON_GENRES = [
     "disco", "folk", "funk", "gospel", "latin", "soul", "techno", "trance", "world"
 ]
 
-# Function to fetch radio stations by country and genre using pyradios
-def fetch_radio_stations(country, genre):
-    for server in SERVERS:
-        try:
-            rb = pyradios.RadioBrowser(base_url=f"https://{server}")
-            stations = rb.search(country=country, tag=genre, limit=10)  # Adjust limit as needed
-            return stations
-        except Exception as e:
-            print(f"Error fetching stations from {server}: {e}")
-    messagebox.showerror("Error", "Failed to fetch radio stations from all servers.")
-    return []
+class RadioApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
 
-# Function to play the selected radio station
-def play_station():
-    global player
+        self.setWindowTitle("World Radio App")
+        self.setGeometry(100, 100, 800, 600)
 
-    selected_station = station_combobox.get()
-    if selected_station:
-        station_info = station_urls[selected_station]
-        url = station_info['url_resolved']
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
 
-        # Stop the current player if it's already playing
-        if player and player.is_playing():
-            player.stop()
+        self.layout = QVBoxLayout()
+        self.central_widget.setLayout(self.layout)
 
-        # Configure VLC instance with logging redirection
-        instance = vlc.Instance('--quiet', '--no-xlib')  # Suppress VLC output
-        player = instance.media_player_new()
-        media = instance.media_new(url)
-        player.set_media(media)
-        player.audio_set_volume(volume_scale.get())  # Set initial volume
-        player.play()
-        messagebox.showinfo("Play Station", f"Playing: {selected_station}\nURL: {url}")
-    else:
-        messagebox.showwarning("No Station Selected", "Please select a radio station to play.")
+        self.player = None
+        self.station_urls = {}
 
-# Function to stop the current radio station
-def stop_station():
-    global player
-    if player and player.is_playing():
-        player.stop()
+        self.init_ui()
 
-# Function to update the station list based on selected country and genre
-def update_stations():
-    country = country_combobox.get()
-    genre = genre_combobox.get()
-    stations = fetch_radio_stations(country, genre)
-    station_names = [station['name'] for station in stations]
-    global station_urls
-    station_urls = {station['name']: station for station in stations}
-    station_combobox['values'] = station_names
-    if station_names:
-        station_combobox.current(0)
+    def init_ui(self):
+        # Country selection
+        self.country_label = QLabel("Country:")
+        self.layout.addWidget(self.country_label)
 
-# Function to update the genre list based on the selected country
-def update_genres():
-    genre_combobox['values'] = COMMON_GENRES
-    if COMMON_GENRES:
-        genre_combobox.current(0)
-    update_stations()
+        self.country_combobox = QComboBox()
+        countries = [
+            "United States", "United Kingdom", "Canada", "Australia", "Germany", "France",
+            "Italy", "Spain", "Netherlands", "Russia", "India", "China", "Japan", "South Korea",
+            "Brazil", "Mexico", "South Africa", "Argentina", "Sweden", "Norway", "Denmark"
+        ]
+        self.country_combobox.addItems(countries)
+        self.country_combobox.currentIndexChanged.connect(self.update_genres)
+        self.layout.addWidget(self.country_combobox)
 
-# Function to set the volume
-def set_volume(val):
-    global player
-    volume = int(val)
-    if player:
-        player.audio_set_volume(volume)
+        # Genre selection
+        self.genre_label = QLabel("Genre:")
+        self.layout.addWidget(self.genre_label)
 
-# Initialize the media player globally
-player = None
+        self.genre_combobox = QComboBox()
+        self.genre_combobox.addItems(COMMON_GENRES)
+        self.genre_combobox.currentIndexChanged.connect(self.update_stations)
+        self.layout.addWidget(self.genre_combobox)
 
-# Create the main window
-root = tk.Tk()
-root.title("World Radio App")
+        # Station selection
+        self.station_label = QLabel("Station:")
+        self.layout.addWidget(self.station_label)
 
-# Set the icon
-icon_path = os.path.join('assets', 'images', 'icons8-radio-64.png')
-root.iconphoto(False, tk.PhotoImage(file=icon_path))
+        self.station_combobox = QComboBox()
+        self.layout.addWidget(self.station_combobox)
 
-# Create and place the country label and combobox
-country_label = tk.Label(root, text="Country:")
-country_label.grid(row=0, column=0, padx=10, pady=10)
-countries = [
-    "United States", "United Kingdom", "Canada", "Australia", "Germany", "France",
-    "Italy", "Spain", "Netherlands", "Russia", "India", "China", "Japan", "South Korea",
-    "Brazil", "Mexico", "South Africa", "Argentina", "Sweden", "Norway", "Denmark"
-]
-country_combobox = ttk.Combobox(root, values=countries)
-country_combobox.grid(row=0, column=1, padx=10, pady=10)
-country_combobox.current(0)
-country_combobox.bind("<<ComboboxSelected>>", lambda e: update_genres())
+        # Play button
+        self.play_button = QPushButton("Play")
+        self.play_button.clicked.connect(self.play_station)
+        self.layout.addWidget(self.play_button)
 
-# Create and place the genre label and combobox
-genre_label = tk.Label(root, text="Genre:")
-genre_label.grid(row=1, column=0, padx=10, pady=10)
-genre_combobox = ttk.Combobox(root, values=COMMON_GENRES)
-genre_combobox.grid(row=1, column=1, padx=10, pady=10)
-genre_combobox.current(0)
-genre_combobox.bind("<<ComboboxSelected>>", lambda e: update_stations())
+        # Stop button
+        self.stop_button = QPushButton("Stop")
+        self.stop_button.clicked.connect(self.stop_station)
+        self.layout.addWidget(self.stop_button)
 
-# Create and place the station label and combobox
-station_label = tk.Label(root, text="Station:")
-station_label.grid(row=2, column=0, padx=10, pady=10)
-station_combobox = ttk.Combobox(root)
-station_combobox.grid(row=2, column=1, padx=10, pady=10)
+        # Volume control
+        self.volume_label = QLabel("Volume:")
+        self.layout.addWidget(self.volume_label)
 
-# Create and place the play button
-play_button = tk.Button(root, text="Play", command=play_station)
-play_button.grid(row=3, column=0, columnspan=2, padx=10, pady=5)
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(50)
+        self.volume_slider.valueChanged.connect(self.set_volume)
+        self.layout.addWidget(self.volume_slider)
 
-# Create and place the stop button
-stop_button = tk.Button(root, text="Stop", command=stop_station)
-stop_button.grid(row=4, column=0, columnspan=2, padx=10, pady=5)
+        # Update button
+        self.update_button = QPushButton("Update Stations")
+        self.update_button.clicked.connect(self.update_stations)
+        self.layout.addWidget(self.update_button)
 
-# Create and place the volume scale
-volume_label = tk.Label(root, text="Volume:")
-volume_label.grid(row=5, column=0, padx=10, pady=10)
-volume_scale = tk.Scale(root, from_=0, to=100, orient='horizontal', command=set_volume)
-volume_scale.set(50)  # Set default volume to 50
-volume_scale.grid(row=5, column=1, padx=10, pady=10)
+        self.update_genres()
 
-# Create and place the update button
-update_button = tk.Button(root, text="Update Stations", command=update_stations)
-update_button.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
+    def fetch_radio_stations(self, country, genre):
+        for server in SERVERS:
+            try:
+                rb = pyradios.RadioBrowser(base_url=f"https://{server}")
+                stations = rb.search(country=country, tag=genre, limit=10)
+                return stations
+            except Exception as e:
+                print(f"Error fetching stations from {server}: {e}")
+        QMessageBox.critical(self, "Error", "Failed to fetch radio stations from all servers.")
+        return []
 
-# Initial update of genres and stations
-update_genres()
+    def play_station(self):
+        selected_station = self.station_combobox.currentText()
+        if selected_station:
+            station_info = self.station_urls[selected_station]
+            url = station_info['url_resolved']
 
-# Run the main event loop
-root.mainloop()
+            if self.player and self.player.is_playing():
+                self.player.stop()
 
+            instance = vlc.Instance('--quiet', '--no-xlib')
+            self.player = instance.media_player_new()
+            media = instance.media_new(url)
+            self.player.set_media(media)
+            self.player.audio_set_volume(self.volume_slider.value())
+            self.player.play()
+            QMessageBox.information(self, "Play Station", f"Playing: {selected_station}\nURL: {url}")
+        else:
+            QMessageBox.warning(self, "No Station Selected", "Please select a radio station to play.")
+
+    def stop_station(self):
+        if self.player and self.player.is_playing():
+            self.player.stop()
+
+    def update_stations(self):
+        country = self.country_combobox.currentText()
+        genre = self.genre_combobox.currentText()
+        stations = self.fetch_radio_stations(country, genre)
+        station_names = [station['name'] for station in stations]
+        self.station_urls = {station['name']: station for station in stations}
+        self.station_combobox.clear()
+        self.station_combobox.addItems(station_names)
+        if station_names:
+            self.station_combobox.setCurrentIndex(0)
+
+    def update_genres(self):
+        self.genre_combobox.clear()
+        self.genre_combobox.addItems(COMMON_GENRES)
+        self.update_stations()
+
+    def set_volume(self, value):
+        if self.player:
+            self.player.audio_set_volume(value)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    
+    # Load QSS style sheet
+    with open("style.qss", "r") as file:
+        app.setStyleSheet(file.read())
+    
+    window = RadioApp()
+    
+    # Set the icon
+    icon_path = os.path.join('assets', 'images', 'icons8-radio-64.png')
+    window.setWindowIcon(QIcon(icon_path))
+    
+    window.show()
+    sys.exit(app.exec_())
